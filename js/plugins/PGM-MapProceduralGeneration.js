@@ -75,7 +75,7 @@
  *   ProcGen Generate
  *     -> Gera no mapa atual (não move o player).
  *
- *   ProcGen GeneratePlace
+ *   ProcGen GenerateAndPlacePlayer
  *     -> Gera e move o player para o centro da 1ª sala (sem transfer).
  *
  *   ProcGen NextFloor
@@ -237,144 +237,165 @@
     }
   }
 
-  // ---------------- Refresh visual ----------------
-  function refreshTilemap() {
-    const scene = SceneManager._scene;
-    if (scene && scene._spriteset && scene._spriteset._tilemap) {
-      scene._spriteset._tilemap.refresh();
-    }
-    $gameMap.requestRefresh();
-  }
-
-  // ---------------- Estado da saída ----------------
-  // Guardamos o tileId de saída e a coordenada em que foi colocado.
-  // Assim, checamos "player está no X,Y da saída?" para avançar.
-  function clearExitState() {
-    $gameMap._procgenExitX = null;
-    $gameMap._procgenExitY = null;
-    $gameMap._procgenExitTile = null;
-    $gameMap._procgenAdvancing = false;
-  }
-
   // ---------------- Núcleo: gerar no mapa atual ----------------
   function generateDungeonOnCurrentMap(options) {
     options = options || {};
-    if (!$dataMap) return { rooms: [], start: null, ok:false };
+    console.log('ué mano');
+
+    if (!$gameMap || !$gameMap.data()) {
+      console.warn('[ProcGen] $gameMap ainda não está pronto');
+      return {
+        rooms: [],
+        start: null,
+        ok: false
+      };
+    }
 
     if (SEED > 0) srand(SEED);
 
-    const width  = $dataMap.width;
-    const height = $dataMap.height;
+    const width = $gameMap.width();
+    const height = $gameMap.height();
 
-    // 1) Amostragem
-    const tileWall  = getTile(0, clamp(WALL_SX,0,width-1),  clamp(WALL_SY,0,height-1));
-    const tileFloor = getTile(0, clamp(FLOOR_SX,0,width-1), clamp(FLOOR_SY,0,height-1));
-    const tileExit  = getTile(0, clamp(EXIT_SX,0,width-1),  clamp(EXIT_SY,0,height-1));
+    const wallPos = { x: clamp(WALL_SX, 0, width - 1), y: clamp(WALL_SY, 0, height - 1) };
+    const floorPos = { x: clamp(FLOOR_SX, 0, width - 1), y: clamp(FLOOR_SY, 0, height - 1) };
+    const exitPos = { x: clamp(EXIT_SX, 0, width - 1), y: clamp(EXIT_SY, 0, height - 1) };
+
+    const tileWall = getTile(0, wallPos.x, wallPos.y);
+    const tileFloor = getTile(0, floorPos.x, floorPos.y);
+    const exitSample = sampleAnyLayer(exitPos.x, exitPos.y);
+    const tileExit = exitSample.tileId;
+    const exitLayer = exitSample.layer;
 
     if (!tileWall || !tileFloor || tileWall === tileFloor) {
-      console.warn('[ProcGen] Amostra inválida de parede/chão.');
-      return { rooms: [], start: null, ok:false };
-    }
-    if (PLACE_EXIT && (!tileExit || tileExit === tileWall || tileExit === tileFloor)) {
-      console.warn('[ProcGen] Recomenda-se um tile de SAÍDA distinto (ExitSample).');
-      // ainda assim permitimos continuar; se inválido, não colocamos saída
+      console.warn('[ProcGen] Amostra inválida de parede/chão. Use tiles do conjunto A em Wall/Floor.');
+      return { rooms: [], start: null, ok: false };
     }
 
-    // 2) Preencher tudo com parede
+    // 1. Preenche tudo com parede (camada 0)
     for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) setTile(0, x, y, tileWall);
-    }
-
-    // 3) Salas
-    const rooms = [];
-    for (let i = 0; i < ROOMS_COUNT; i++) {
-      const w = clamp(randInt(MIN_SIZE, MAX_SIZE), 3, width-2);
-      const h = clamp(randInt(MIN_SIZE, MAX_SIZE), 3, height-2);
-      const x = clamp(randInt(1, width - w - 2), 1, Math.max(1, width - w - 2));
-      const y = clamp(randInt(1, height - h - 2), 1, Math.max(1, height - h - 2));
-      const r = new Room(x, y, w, h);
-      let collide = false;
-      for (let k = 0; k < rooms.length; k++) if (intersects(r, rooms[k])) { collide = true; break; }
-      if (!collide) {
-        carveRoom(r, tileFloor);
-        if (rooms.length > 0) carveCorridor(rooms[rooms.length-1], r, tileFloor);
-        rooms.push(r);
+      for (let x = 0; x < width; x++) {
+        setTile(0, x, y, tileWall);
       }
     }
 
-    // 4) Ponto inicial
+    // 2. Gera salas
+    const rooms = [];
+    for (let i = 0; i < ROOMS_COUNT; i++) {
+      const roomWidth = clamp(randInt(MIN_SIZE, MAX_SIZE), 3, width - 2);
+      const roomHeight = clamp(randInt(MIN_SIZE, MAX_SIZE), 3, height - 2);
+      const roomX = clamp(randInt(1, width - roomWidth - 2), 1, Math.max(1, width - roomWidth - 2));
+      const roomY = clamp(randInt(1, height - roomHeight - 2), 1, Math.max(1, height - roomHeight - 2));
+      const room = new Room(roomX, roomY, roomWidth, roomHeight);
+
+      let collide = false;
+      
+      for (let k = 0; k < rooms.length; k++) {
+        if (intersects(room, rooms[k])) {
+          collide = true;
+          break;
+        }
+      }
+
+      if (!collide) {
+        carveRoom(room, tileFloor);
+        if (rooms.length > 0) {
+          carveCorridor(rooms[rooms.length - 1], room, tileFloor);
+          rooms.push(room);
+        }
+      }
+    }
+
     const start = rooms.length ? rooms[0] : null;
 
-    // 5) Saída (na sala mais distante da inicial, ou última sala criada)
-    clearExitState();
+    // 3. Posição da saída (sala mais distante da inicial)
+    $gameMap._procgenExitX = null;
+    $gameMap._procgenExitY = null;
+
     if (PLACE_EXIT && rooms.length >= 2 && tileExit && tileExit !== tileWall && tileExit !== tileFloor) {
       let exitRoom = rooms[rooms.length - 1];
+
       if (start) {
-        // opcional: escolher a sala mais distante da start (métrica Manhattan)
-        let best = exitRoom, bestD = 0;
+        let best = exitRoom;
+        let bestD = 0;
+
         for (let i = 1; i < rooms.length; i++) {
           const r = rooms[i];
           const d = Math.abs(r.cx - start.cx) + Math.abs(r.cy - start.cy);
-          if (d > bestD) { bestD = d; best = r; }
+
+          if (d > bestD) {
+            bestD = d;
+            best = r;
+          }
         }
+
         exitRoom = best;
       }
-      setTile(0, exitRoom.cx, exitRoom.cy, tileExit);
+
+      // Garante chão por baixo e senha saída na camada correta
+      setTile(0, exitRoom.cx, exitRoom.cy, tileFloor);
+      setTile(exitLayer, exitRoom.cs, exitRoom.cy, tileExit);
+
       $gameMap._procgenExitX = exitRoom.cx;
       $gameMap._procgenExitY = exitRoom.cy;
-      $gameMap._procgenExitTile = tileExit;
     }
 
-    refreshTilemap();
-
-    // 6) (Opcional) posicionar player
+    // 4. Posiciona o player se necessário
     if (options.placePlayer && start) {
       $gamePlayer.locate(start.cx, start.cy);
-      refreshTilemap();
     }
 
-    return { rooms, start, ok:true };
+    refreshMap();
+
+    return {
+      rooms,
+      start,
+      ok: true
+    };
   }
 
-  // ---------------- Passar para o próximo andar ----------------
-  function nextFloor() {
-    if ($gameMap._procgenAdvancing) return;
-    $gameMap._procgenAdvancing = true;
+  // ========= Avança para o próximo andar ("próximo mapa", mas na verdade é o mesmo mapa) ==========
+  function transferToNextFloor() {
+    if (!$gameMap) return;
+    if ($gameMap._procgenNextFloor) return;
 
-    // Regerar e recolocar o player no novo start
-    const res = generateDungeonOnCurrentMap({ placePlayer: true });
-    // Limpa para evitar re-disparo imediato
-    clearExitState();
+    $gameMap._procgenNextFloor = true;
 
-    // pequena proteção
-    setTimeout(() => { $gameMap._procgenAdvancing = false; }, 0);
+    // Transfer seguro para o MESMO mapa; a geração acontece no onMapLoaded
+    $gamePlayer.reserveTransfer(
+      $gameMap.mapId(),
+      $gamePlayer.x,
+      $gamePlayer.y,
+      $gamePlayer.direction(),
+      0
+    );
   }
 
   // ---------------- Hook de update para detectar "pisou na saída" ----------------
   const _Scene_Map_update = Scene_Map.prototype.update;
+
   Scene_Map.prototype.update = function() {
     _Scene_Map_update.call(this);
-    if ($gameMap && $dataMap) {
-      const ex = $gameMap._procgenExitX;
-      const ey = $gameMap._procgenExitY;
-      
-      if (ex !== null && ey !== null) {
-        if ($gamePlayer.x === ex && $gamePlayer.y === ey && !$gameTemp._procgenNextFloor) {
-          $gameTemp._procgenNextFloor = true;
 
-          $gamePlayer.reserveTransfer($gameMap.mapId(), $gamePlayer.x, $gamePlayer.y, $gamePlayer.direction(), 0)
-        }
+    if (!$gameMap) return;
+
+    const ex = $gameMap._procgenExitX;
+    const ey = $gameMap._procgenExitY;
+
+    if (ex !== null && ey !== null) {
+      if ($gamePlayer.x === ex && $gamePlayer.y === ey && !$gameMap._procgenNextFloor) {
+        transferToNextFloor();
       }
     }
   };
 
+  // ========== Geração após transfer para próximo andar ==========
   const _Scene_Map_onMapLoaded = Scene_Map.prototype.onMapLoaded;
   Scene_Map.prototype.onMapLoaded = function() {
     _Scene_Map_onMapLoaded.call(this);
 
-    if ($gameTemp && $gameTemp._procgenNextFloor) {
-      const res = generateDungeonOnCurrentMap({ placePlayer: true });
-      $gameTemp._procgenNextFloor = false;
+    if ($gameMap && $gameMap._procgenNextFloor) {
+      generateDungeonOnCurrentMap({ placePlayer: true });
+      $gameMap._procgenNextFloor = false;
     }
   }
 
@@ -382,16 +403,18 @@
   const _pluginCommand = Game_Interpreter.prototype.pluginCommand;
   Game_Interpreter.prototype.pluginCommand = function(command, args) {
     _pluginCommand.call(this, command, args);
-    if (command === 'ProcGen') {
-      const sub = (args[0] || '').toLowerCase();
 
-      if (sub === 'generate') {
-        generateDungeonOnCurrentMap({ placePlayer:false });
-      } else if (sub === 'generateplace') {
-        generateDungeonOnCurrentMap({ placePlayer:true });
-      } else if (sub === 'nextfloor') {
-        nextFloor();
+    if (command = 'ProcGen') {
+      const sub = (args[0] || '');
+
+      if (sub === 'Generate') {
+        generateDungeonOnCurrentMap({ placePlayer: false });
+      } else if (sub === 'GenerateAndPlacePlayer') {
+        generateDungeonOnCurrentMap({ placePlayer: true });
+      } else if (sub === 'NextFloor') {
+        transferToNextFloor();
       }
     }
-  };
+  }
+
 })();
