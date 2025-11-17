@@ -240,7 +240,6 @@
   // ---------------- Núcleo: gerar no mapa atual ----------------
   function generateDungeonOnCurrentMap(options) {
     options = options || {};
-    console.log('ué mano');
 
     if (!$gameMap || !$gameMap.data()) {
       console.warn('[ProcGen] $gameMap ainda não está pronto');
@@ -300,12 +299,13 @@
         carveRoom(room, tileFloor);
         if (rooms.length > 0) {
           carveCorridor(rooms[rooms.length - 1], room, tileFloor);
-          rooms.push(room);
         }
+        rooms.push(room);
       }
     }
 
-    const start = rooms.length ? rooms[0] : null;
+    const start = rooms.length > 0 ? rooms[0] : null;
+    console.log({ start, rooms });
 
     // 3. Posição da saída (sala mais distante da inicial)
     $gameMap._procgenExitX = null;
@@ -405,13 +405,13 @@
     _pluginCommand.call(this, command, args);
 
     if (command = 'ProcGen') {
-      const sub = (args[0] || '');
+      const sub = (args[0] || '').toLowerCase();
 
-      if (sub === 'Generate') {
+      if (sub === 'generate') {
         generateDungeonOnCurrentMap({ placePlayer: false });
-      } else if (sub === 'GenerateAndPlacePlayer') {
+      } else if (sub === 'generateandplaceplayer') {
         generateDungeonOnCurrentMap({ placePlayer: true });
-      } else if (sub === 'NextFloor') {
+      } else if (sub === 'nextfloor') {
         transferToNextFloor();
       }
     }
