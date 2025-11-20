@@ -3,5 +3,6 @@
 var $plugins =
 [
 {"name":"Community_Basic","status":true,"description":"Plugin used to set basic parameters.","parameters":{"cacheLimit":"20","screenWidth":"816","screenHeight":"624","changeWindowWidthTo":"","changeWindowHeightTo":"","renderingMode":"auto","alwaysDash":"off"}},
-{"name":"PGM-MapProceduralGeneration","status":true,"description":"[MV] Dungeon procedural (salas + corredores) com amostragem de tiles e \"próximo andar\" no mesmo mapa. v1.1","parameters":{"RoomsCount":"8","MinRoomSize":"4","MaxRoomSize":"10","WallSampleX":"0","WallSampleY":"0","FloorSampleX":"1","FloorSampleY":"0","ExitSampleX":"2","ExitSampleY":"0","PlaceExit":"true","Seed":"0"}}
+{"name":"PGM-MapProceduralGeneration","status":false,"description":"[MV] Dungeon procedural (salas + corredores) com amostragem de tiles e \"próximo andar\" no mesmo mapa. v1.1","parameters":{"RoomsCount":"8","MinRoomSize":"4","MaxRoomSize":"10","WallSampleX":"0","WallSampleY":"0","FloorSampleX":"1","FloorSampleY":"0","ExitSampleX":"2","ExitSampleY":"0","PlaceExit":"true","Seed":"0"}},
+{"name":"ProcGen","status":true,"description":"Procedural Generation - Map","parameters":{}}
 ];

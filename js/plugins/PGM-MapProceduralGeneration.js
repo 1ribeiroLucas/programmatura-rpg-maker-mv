@@ -93,6 +93,13 @@
  * - Se usar um evento Autorun p/ gerar, lembre-se de desligá-lo (Self Switch A).
  * - Certifique-se que CHÃO é passável no tileset.
  */
+
+
+
+// FIXME: está sendo gerada só 1 sala
+// FIXME: abrir e fechar o menu ainda reseta o mapa e deixa tudo preto
+// FIXME: a saída não está sendo exibida
+// - tileset de saída ainda não aparece, mas existe e pode aparecer no mesmo local em que o player foi colocado
 (function() {
   'use strict';
 
@@ -311,7 +318,10 @@
     $gameMap._procgenExitX = null;
     $gameMap._procgenExitY = null;
 
-    if (PLACE_EXIT && rooms.length >= 2 && tileExit && tileExit !== tileWall && tileExit !== tileFloor) {
+    console.log({
+      PLACE_EXIT, rooms, tileExit, tileWall, tileFloor, playerTileId: $gameMap.tileId($gamePlayer.x, $gamePlayer.y, 0), exitPos, exitSample
+    });
+    if (PLACE_EXIT && rooms.length >= 2 && tileExit && tileExit !== tileWall && tileExit !== tileFloor && tileExit !== $gameMap.tileId($gamePlayer.x, $gamePlayer.y, 0)) {
       let exitRoom = rooms[rooms.length - 1];
 
       if (start) {
