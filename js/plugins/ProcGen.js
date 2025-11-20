@@ -7,12 +7,18 @@
  * 
  * 	ProcGen Generate
  * 
- * O que faze:
+ * O que faz:
  * - Lê o tile em (0,0) como PAREDE (camada A).
  * - Lê o tile em (1,0) como CHÃO (camada A).
  * - Preenche TODO o mapa atual com PAREDE.
  * - Cria UMA sala retangular no centro com CHÃO.
  * - Atualiza o tilemap para você ver na hora.
+ * 
+ *	ProcGen GeneratePlace
+ * 
+ * O que faz:
+ * Após gerar o mapa, posiciona o player em uma posição (x, y)
+ * 
  */
 
 (function() {
@@ -48,7 +54,8 @@
 	}
 
 	// --- GERAÇÃO SIMPLES: SALA NO CENTRO
-	function generateRooms() {
+	function generateRooms(shouldPlacePlayer = false) {
+		console.log({shouldPlacePlayer});
 		if (!$gameMap || !$gameMap.data()) {
 			console.warn('[ProcGen] $gameMap não está pronto');
 			return;
@@ -84,9 +91,16 @@
 			}
 		}
 
+		// Posiciona o jogador
+		if (shouldPlacePlayer) {
+			const centerX = Math.floor(roomX + roomWidth / 2);
+			const centerY = Math.floor(roomY + roomHeight / 2);
+
+			$gamePlayer.locate(centerX, centerY);
+		}
+
 		// Atualiza o desenho do mapa
 		refreshTilemap();
-		console.log({message: 'Atualizou, fiote'});
 	}
 
 	// --- PLUGIN COMMAND ---
@@ -99,6 +113,10 @@
 
 			if (sub === 'generate') {
 				generateRooms();
+			}
+
+			if (sub === 'generateandplaceplayer') {
+				generateRooms(true)
 			}
 		}
 	}
